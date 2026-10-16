@@ -62,6 +62,12 @@ main{max-width:1080px;margin:0 auto;padding:0 16px}
 .slot[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:var(--accent-ink);font-weight:600}
 .empty{color:var(--muted);font-size:15px;margin:0;grid-column:1 / -1}
 .confirm{margin-top:22px;width:100%}
+.fields{display:grid;gap:10px}
+.fields input[type=text],.fields input[type=tel]{font:inherit;font-size:16px;padding:12px 14px;border:1.5px solid var(--line);border-radius:10px;background:var(--paper);color:inherit;width:100%;box-sizing:border-box}
+.fields input:focus{outline:2px solid var(--accent);outline-offset:1px}
+.consent{display:flex;gap:10px;align-items:flex-start;font-size:14px;color:var(--muted);line-height:1.4}
+.consent input{margin-top:3px;width:18px;height:18px;accent-color:var(--brand)}
+.wa{display:flex;align-items:center;justify-content:center;gap:8px;margin-top:16px;width:100%;background:#25D366;color:#0b3d1e;border-color:#25D366}
 .done{text-align:left}
 .done .tick{width:52px;height:52px;border-radius:50%;background:var(--accent);color:var(--accent-ink);display:grid;place-items:center;font-size:26px;margin-bottom:14px}
 .done p{margin:6px 0}
@@ -127,13 +133,19 @@ footer{max-width:1080px;margin:64px auto 0;padding:24px 20px 40px;border-top:1.5
   <div class="booking" id="reserva" aria-live="polite">
     <div id="flow">
       <h2>Reserva tu cita</h2>
-      <p class="hint">Elige servicio, día y hora. Te llega la confirmación al momento.</p>
+      <p class="hint">Elige servicio, día y hora y deja tus datos. La cita queda guardada en la agenda y la confirmas por WhatsApp.</p>
       <p class="q" id="q1">¿Qué te apetece?</p>
       <div class="chips" role="group" aria-labelledby="q1" id="svc"></div>
       <p class="q" id="q2">¿Qué día?</p>
       <div class="days" role="group" aria-labelledby="q2" id="days"></div>
       <p class="q" id="q3">¿A qué hora?</p>
       <div class="slots" role="group" aria-labelledby="q3" id="slots"></div>
+      <p class="q" id="q4">Tus datos</p>
+      <div class="fields" role="group" aria-labelledby="q4">
+        <input type="text" id="nombre" placeholder="Nombre y apellido" autocomplete="name" aria-label="Nombre y apellido">
+        <input type="tel" id="tel" placeholder="Teléfono móvil" autocomplete="tel" inputmode="tel" aria-label="Teléfono móvil">
+        <label class="consent"><input type="checkbox" id="ok"> Acepto que mis datos se usen solo para gestionar mi cita (política de privacidad).</label>
+      </div>
       <button class="btn btn-dark confirm" id="go" disabled>Elige servicio, día y hora</button>
     </div>
     <div id="done" class="done" hidden></div>
@@ -175,6 +187,9 @@ const $ = s => document.querySelector(s);
 const pad = n => String(n).padStart(2,"0");
 const fmt = m => pad(Math.floor(m/60)) + ":" + pad(m%60);
 let state = {svc:null, day:null, slot:null};
+const BOOKED = new Set(); // en la versión real, esto es la agenda en Firebase
+const WA = "34659681455";
+const telOk = t => /^[67]\d{8}$/.test(t.replace(/[\s.-]/g,"").replace(/^(\+34|0034)/,""));
 
 function hash(s){let h=2166136261;for(const c of s){h^=c.charCodeAt(0);h=Math.imul(h,16777619)}return (h>>>0)/4294967295}
 
@@ -190,7 +205,7 @@ function openDays(){
 function slotsFor(date){
   const res=[]; const key=date.toISOString().slice(0,10);
   for(const [a,b] of SCHEDULE[date.getDay()]){
-    for(let m=a; m+60<=b; m+=30){ res.push({m, taken: hash(key+m) < .32}); }
+    for(let m=a; m+60<=b; m+=30){ res.push({m, taken: hash(key+m) < .32 || BOOKED.has(key+"|"+m)}); }
   }
   return res;
 }
@@ -233,24 +248,31 @@ function renderSlots(){
   });
 }
 function update(){
-  const go=$("#go"); const ok=state.svc!==null && state.day && state.slot!==null;
-  go.disabled=!ok;
-  go.textContent = ok ? `Reservar el ${DOW[state.day.getDay()]} ${state.day.getDate()} a las ${fmt(state.slot)}` : "Elige servicio, día y hora";
+  const go=$("#go"); const pick=state.svc!==null && state.day && state.slot!==null;
+  const datos=$("#nombre").value.trim().length>=2 && telOk($("#tel").value) && $("#ok").checked;
+  go.disabled=!(pick&&datos);
+  go.textContent = !pick ? "Elige servicio, día y hora" : !datos ? "Completa tus datos" : `Reservar el ${DOW[state.day.getDay()]} ${state.day.getDate()} a las ${fmt(state.slot)}`;
 }
 $("#go").onclick=()=>{
-  const d=state.day;
+  const d=state.day, svc=SERVICES[state.svc][0], nombre=$("#nombre").value.trim(), tel=$("#tel").value.trim();
+  const fecha=`${DOW[d.getDay()]} ${d.getDate()} de ${MON[d.getMonth()]}`;
+  BOOKED.add(d.toISOString().slice(0,10)+"|"+state.slot);
+  const msg=`Hola Alba, soy ${nombre} (tel. ${tel}). He reservado ${svc} el ${fecha} a las ${fmt(state.slot)} desde tu web. ¿Me confirmas la cita? Gracias.`;
   const done=$("#done");
   done.innerHTML=`<div class="tick" aria-hidden="true">✓</div>
-    <h2>Cita reservada</h2>
-    <p><strong></strong></p>
-    <p>${DOW[d.getDay()][0].toUpperCase()+DOW[d.getDay()].slice(1)} ${d.getDate()} de ${MON[d.getMonth()]}, a las ${fmt(state.slot)}.</p>
-    <p>El día antes te llega un recordatorio por email.</p>
-    <p class="small">Esto es una demostración: no se ha reservado ninguna cita.</p>
+    <h2>Cita guardada en la agenda</h2>
+    <p><strong id="dsvc"></strong></p>
+    <p>${fecha[0].toUpperCase()+fecha.slice(1)}, a las ${fmt(state.slot)}.</p>
+    <p>Último paso: envía la confirmación por WhatsApp y Alba te responde.</p>
+    <a class="btn wa" id="wa" target="_blank" rel="noopener">Confirmar por WhatsApp</a>
+    <p class="small">Esto es una demostración: la hora queda bloqueada solo en esta página y el WhatsApp se abre con el mensaje ya escrito.</p>
     <button class="linkbtn" type="button" id="again">Hacer otra reserva</button>`;
-  done.querySelector("strong").textContent=SERVICES[state.svc][0];
+  done.querySelector("#dsvc").textContent=svc;
+  done.querySelector("#wa").href=`https://wa.me/${WA}?text=${encodeURIComponent(msg)}`;
   $("#flow").hidden=true; done.hidden=false;
   $("#again").onclick=()=>{state={svc:null,day:null,slot:null}; done.hidden=true; $("#flow").hidden=false; press($("#svc"),null); renderDays(); update();};
 };
+["#nombre","#tel"].forEach(s=>$(s).addEventListener("input",update)); $("#ok").addEventListener("change",update);
 function renderHours(){
   const order=[1,2,3,4,5,6,0]; const tb=$("#hours"); const today=new Date().getDay();
   order.forEach(i=>{

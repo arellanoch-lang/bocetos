@@ -67,7 +67,6 @@ main{max-width:1080px;margin:0 auto;padding:0 16px}
 .fields input:focus{outline:2px solid var(--accent);outline-offset:1px}
 .consent{display:flex;gap:10px;align-items:flex-start;font-size:14px;color:var(--muted);line-height:1.4}
 .consent input{margin-top:3px;width:18px;height:18px;accent-color:var(--brand)}
-.wa{display:flex;align-items:center;justify-content:center;gap:8px;margin-top:16px;width:100%;background:#25D366;color:#0b3d1e;border-color:#25D366}
 .done{text-align:left}
 .done .tick{width:52px;height:52px;border-radius:50%;background:var(--accent);color:var(--accent-ink);display:grid;place-items:center;font-size:26px;margin-bottom:14px}
 .done p{margin:6px 0}
@@ -133,7 +132,7 @@ footer{max-width:1080px;margin:64px auto 0;padding:24px 20px 40px;border-top:1.5
   <div class="booking" id="reserva" aria-live="polite">
     <div id="flow">
       <h2>Reserva tu cita</h2>
-      <p class="hint">Elige servicio, día y hora y deja tus datos. La cita queda guardada en la agenda y la confirmas por WhatsApp.</p>
+      <p class="hint">Elige servicio, día y hora y deja tus datos. La cita entra directamente en la agenda del centro.</p>
       <p class="q" id="q1">¿Qué te apetece?</p>
       <div class="chips" role="group" aria-labelledby="q1" id="svc"></div>
       <p class="q" id="q2">¿Qué día?</p>
@@ -188,7 +187,6 @@ const pad = n => String(n).padStart(2,"0");
 const fmt = m => pad(Math.floor(m/60)) + ":" + pad(m%60);
 let state = {svc:null, day:null, slot:null};
 const BOOKED = new Set(); // en la versión real, esto es la agenda en Firebase
-const WA = "34659681455";
 const telOk = t => /^[67]\d{8}$/.test(t.replace(/[\s.-]/g,"").replace(/^(\+34|0034)/,""));
 
 function hash(s){let h=2166136261;for(const c of s){h^=c.charCodeAt(0);h=Math.imul(h,16777619)}return (h>>>0)/4294967295}
@@ -257,18 +255,15 @@ $("#go").onclick=()=>{
   const d=state.day, svc=SERVICES[state.svc][0], nombre=$("#nombre").value.trim(), tel=$("#tel").value.trim();
   const fecha=`${DOW[d.getDay()]} ${d.getDate()} de ${MON[d.getMonth()]}`;
   BOOKED.add(d.toISOString().slice(0,10)+"|"+state.slot);
-  const msg=`Hola Alba, soy ${nombre} (tel. ${tel}). He reservado ${svc} el ${fecha} a las ${fmt(state.slot)} desde tu web. ¿Me confirmas la cita? Gracias.`;
   const done=$("#done");
   done.innerHTML=`<div class="tick" aria-hidden="true">✓</div>
-    <h2>Cita guardada en la agenda</h2>
+    <h2>Cita reservada</h2>
     <p><strong id="dsvc"></strong></p>
     <p>${fecha[0].toUpperCase()+fecha.slice(1)}, a las ${fmt(state.slot)}.</p>
-    <p>Último paso: envía la confirmación por WhatsApp y Alba te responde.</p>
-    <a class="btn wa" id="wa" target="_blank" rel="noopener">Confirmar por WhatsApp</a>
-    <p class="small">Esto es una demostración: la hora queda bloqueada solo en esta página y el WhatsApp se abre con el mensaje ya escrito.</p>
+    <p>Tu cita ya está en la agenda de Alba. Te llegará la confirmación por WhatsApp al número que has dejado.</p>
+    <p class="small">Esto es una demostración: no se ha reservado ninguna cita real.</p>
     <button class="linkbtn" type="button" id="again">Hacer otra reserva</button>`;
   done.querySelector("#dsvc").textContent=svc;
-  done.querySelector("#wa").href=`https://wa.me/${WA}?text=${encodeURIComponent(msg)}`;
   $("#flow").hidden=true; done.hidden=false;
   $("#again").onclick=()=>{state={svc:null,day:null,slot:null}; done.hidden=true; $("#flow").hidden=false; press($("#svc"),null); renderDays(); update();};
 };

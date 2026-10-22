@@ -168,7 +168,7 @@ footer{max-width:1080px;margin:64px auto 0;padding:24px 20px 40px;border-top:1.5
 <footer><span>Starling Durán Barbería</span><span>Sistema de reservas de ejemplo diseñado por Christel Arellano</span></footer>
 
 <script>
-const SERVICES = [["Corte de pelo", "Corte a tijera o máquina, a tu estilo."], ["Corte + barba", "Corte completo y arreglo de barba con perfilado."], ["Arreglo de barba", "Perfilado y rebajado de barba."], ["Degradado (fade)", "Degradado limpio con acabado a navaja."], ["Corte infantil", "Corte para los más peques."]];
+const SERVICES = [["Corte normal", "Corte a tijera o máquina, a tu estilo."], ["Corte con barba", "Corte completo y arreglo de barba con perfilado."], ["Mechas", "Mechas y color para un look diferente."], ["Permanente de rizos", "Rizos definidos que duran semanas."], ["Corte niños (1 a 10 años)", "Corte para los más peques de la casa."]];
 const SCHEDULE = [[[600, 825], [930, 1200]], [[600, 780], [975, 1155]], [[600, 780], [975, 1155]], [[600, 780], [975, 1155]], [[600, 780], [975, 1155]], [[600, 780], [975, 1155]], [[600, 780], [975, 1155]]]; // index 0 = domingo; null = cerrado; "?" = consultar; [[inicio,fin],...] en minutos
 const DOW = ["domingo","lunes","martes","miércoles","jueves","viernes","sábado"];
 const DOWS = ["dom","lun","mar","mié","jue","vie","sáb"];
@@ -178,11 +178,12 @@ const $ = s => document.querySelector(s);
 const pad = n => String(n).padStart(2,"0");
 const fmt = m => pad(Math.floor(m/60)) + ":" + pad(m%60);
 let state = {svc:null, day:null, slot:null, pro:null};
-const PROS=["Me da igual","Starling","Barbero 2","Barbero 3","Barbero 4"];
+const PROS=["Cualquiera","Kevin","Cabo","Jeferson","Iker"];
 const BOOKED = new Set(); // en la versión real, esto es la agenda en Firebase
 const telOk = t => /^[67]\d{8}$/.test(t.replace(/[\s.-]/g,"").replace(/^(\+34|0034)/,""));
 
 function hash(s){let h=2166136261;for(const c of s){h^=c.charCodeAt(0);h=Math.imul(h,16777619)}return (h>>>0)/4294967295}
+function mix(s,k){let x=Math.floor(hash(s)*4294967295)^Math.imul(k+1,2654435761);x=Math.imul(x^(x>>>16),2246822507);x=Math.imul(x^(x>>>13),3266489909);x^=x>>>16;return (x>>>0)/4294967295}
 
 function openDays(){
   const out=[]; const d=new Date(); d.setHours(0,0,0,0);
@@ -196,7 +197,9 @@ function openDays(){
 function slotsFor(date){
   const res=[]; const key=date.toISOString().slice(0,10);
   for(const [a,b] of SCHEDULE[date.getDay()]){
-    for(let m=a; m+60<=b; m+=30){ res.push({m, taken: hash(key+m) < .32 || BOOKED.has(key+"|"+m)}); }
+    for(let m=a; m+60<=b; m+=30){ const busy=k=>mix(key+m,k) < .45 || BOOKED.has(key+"|"+m+"|"+k);
+    const taken = !state.pro ? [1,2,3,4].every(busy) : busy(state.pro);
+    res.push({m, taken}); }
   }
   return res;
 }
@@ -247,7 +250,8 @@ function update(){
 $("#go").onclick=()=>{
   const d=state.day, svc=SERVICES[state.svc][0];
   const fecha=`${DOW[d.getDay()]} ${d.getDate()} de ${MON[d.getMonth()]}`;
-  BOOKED.add(d.toISOString().slice(0,10)+"|"+state.slot);
+  let who=state.pro; if(!who){ const key=d.toISOString().slice(0,10); who=[1,2,3,4].find(k=>!(mix(key+state.slot,k)<.45||BOOKED.has(key+"|"+state.slot+"|"+k)))||1; }
+  BOOKED.add(d.toISOString().slice(0,10)+"|"+state.slot+"|"+who);
   const done=$("#done");
   done.innerHTML=`<div class="tick" aria-hidden="true">✓</div>
     <h2>Cita reservada</h2>
@@ -256,7 +260,7 @@ $("#go").onclick=()=>{
     <p>Tu cita ya está en la agenda de la barbería. Te llegará la confirmación por WhatsApp al número que has dejado.</p>
     <p class="small">Esto es una demostración: no se ha reservado ninguna cita real.</p>
     <button class="linkbtn" type="button" id="again">Hacer otra reserva</button>`;
-  done.querySelector("#dsvc").textContent=svc+" · "+(state.pro===0?"cualquier barbero":"con "+PROS[state.pro]);
+  done.querySelector("#dsvc").textContent=svc+" · con "+PROS[who];
   $("#flow").hidden=true; done.hidden=false;
   $("#again").onclick=()=>{state={svc:null,day:null,slot:null,pro:null}; press($("#pro"),null); done.hidden=true; $("#flow").hidden=false; press($("#svc"),null); renderDays(); update();};
 };
@@ -271,8 +275,8 @@ function renderHours(){
   });
 }
 function renderPros(){ const box=$("#pro"); box.innerHTML="";
-  PROS.forEach((n,i)=>{ const b=document.createElement("button"); b.className="chip"; b.type="button"; b.textContent=n; b.setAttribute("aria-pressed","false");
-    b.onclick=()=>{state.pro=i; press(box,b); update();}; box.appendChild(b); }); }
+  PROS.forEach((n,i)=>{ const b=document.createElement("button"); b.className="chip"; b.type="button"; b.textContent=i?n+" CBS":n; b.setAttribute("aria-pressed","false");
+    b.onclick=()=>{state.pro=i; state.slot=null; press(box,b); renderSlots(); update();}; box.appendChild(b); }); }
 renderServices(); renderPros(); renderDays(); renderHours(); update();
 </script>
 </body>
